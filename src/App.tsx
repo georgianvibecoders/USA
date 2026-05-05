@@ -17,15 +17,53 @@ export default function App() {
 
   const QUESTION_COUNT = usStates.length;
 
-  // Initialize quiz with fixed sequence but random options
+  // Generate a random quiz with hard distractors
   const initializeQuiz = useCallback(() => {
     const generatedQuestions: Question[] = usStates.map((state) => {
       const correctAbbr = state.abbr;
+      const firstLetter = correctAbbr[0];
       
-      // Get 3 other random abbreviations
-      const otherStates = usStates.filter((s) => s.abbr !== correctAbbr);
-      const shuffledOthers = [...otherStates].sort(() => 0.5 - Math.random());
-      const wrongAbbrs = shuffledOthers.slice(0, 3).map((s) => s.abbr);
+      // 1. Real abbreviations that share the same first letter
+      const realSameFirst = usStates
+        .map(s => s.abbr)
+        .filter(abbr => abbr[0] === firstLetter && abbr !== correctAbbr);
+        
+      // 2. Fake abbreviations derived from the state name
+      const stateNameBody = state.nameEn.toUpperCase().replace(/[^A-Z]/g, '').slice(1);
+      const nameLetters = Array.from(new Set(stateNameBody.split('')));
+      const fakeFromName = nameLetters
+        .map(letter => `${firstLetter}${letter}`)
+        .filter(abbr => abbr !== correctAbbr && !realSameFirst.includes(abbr));
+
+      // Shuffle pools
+      const shuffledReal = realSameFirst.sort(() => 0.5 - Math.random());
+      const shuffledFake = fakeFromName.sort(() => 0.5 - Math.random());
+
+      let distractors: string[] = [];
+
+      // Add up to 2 real abbreviations that start with the same letter
+      distractors.push(...shuffledReal.slice(0, 2));
+
+      // Fill the rest with fake ones derived from the state's name
+      while (distractors.length < 3 && shuffledFake.length > 0) {
+        distractors.push(shuffledFake.shift()!);
+      }
+
+      // If we still need more, fallback to other real ones or random letters
+      if (distractors.length < 3) {
+        distractors.push(...shuffledReal.slice(2));
+      }
+      
+      const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+      while (distractors.length < 3) {
+        const randomLetter = alphabet[Math.floor(Math.random() * alphabet.length)];
+        const candidate = `${firstLetter}${randomLetter}`;
+        if (candidate !== correctAbbr && !distractors.includes(candidate)) {
+          distractors.push(candidate);
+        }
+      }
+      
+      const wrongAbbrs = distractors.slice(0, 3).sort(() => 0.5 - Math.random());
       
       // Combine and shuffle options
       const options = [correctAbbr, ...wrongAbbrs].sort(() => 0.5 - Math.random());
